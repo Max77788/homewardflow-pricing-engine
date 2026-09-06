@@ -1,3 +1,4 @@
+import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useState } from 'react';
 import { CONDITIONS, QUALITY, SCOPE_CATALOG, calculateEstimate, validateEstimateInput } from './calculations.js';
 import './styles.css';
@@ -112,3 +113,5 @@ export default function App() {
 function Field({ label, children }) { return <label className="field"><span>{label}</span>{children}</label>; }
 function Metric({ label, value }) { return <div className="metric"><small>{label}</small><strong>{value}</strong></div>; }
 function Row({ label, value, bold }) { return <div className={`fig-row ${bold ? 'bold' : ''}`}><span>{label}</span><strong>{value}</strong></div>; }
+
+createRoot(document.getElementById('root')).render(<App />);
