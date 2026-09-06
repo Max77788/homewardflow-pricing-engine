@@ -1,0 +1,22 @@
+{
+  "name": "homewardflow-pricing-engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.mjs",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/index.mjs",
+    "test": "vitest run",
+    "check": "node --check server/index.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "express": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "vitest": "latest"
+  }
+}
