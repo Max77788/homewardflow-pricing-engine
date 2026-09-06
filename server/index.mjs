@@ -67,10 +67,29 @@ app.get('/api/market-data', async (req, res) => {
 app.get('/api/source-status', (_req, res) => res.json({
   sources: [
     { id: 'bls-ppi', name: 'BLS Producer Price Index', status: 'live_api', note: 'Used for material escalation from the selected base month.' },
-    { id: 'oews', name: 'BLS Occupational Employment and Wage Statistics', status: 'user_input_required', note: 'Enter a local labor rate until an authenticated/local occupation extract is configured.' },
+    { id: 'bls-ces', name: 'BLS Construction Average Hourly Earnings', status: 'live_api', note: 'No-key nationwide construction wage baseline; local labor overrides remain available.' },
+    { id: 'oews', name: 'BLS Occupational Employment and Wage Statistics', status: 'public_file', note: 'Official public annual OEWS files can be imported when a release is selected; no API key is required.' },
+    { id: 'census-acs', name: 'U.S. Census American Community Survey', status: 'key_required', note: 'The Census API currently requires an API key in this deployment environment.' },
+    { id: 'census-permits', name: 'U.S. Census Building Permits Survey', status: 'key_required', note: 'The Census API currently requires an API key in this deployment environment.' },
     { id: 'craftsman', name: 'Craftsman', status: process.env.CRAFTSMAN_API_URL ? 'configured' : 'not_configured', note: 'Optional licensed market benchmark adapter. No benchmark values are fabricated when unavailable.' },
   ],
 }));
+
+app.get('/api/labor-data', async (_req, res) => {
+  try {
+    const response = await fetch(BLS_API, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': 'HomewardFlowPricingEngine/1.0' }, body: JSON.stringify({ seriesid: ['CES2000000003'], startyear: String(new Date().getUTCFullYear() - 2), endyear: String(new Date().getUTCFullYear()) }) });
+    if (!response.ok) throw new Error(`BLS returned HTTP ${response.status}`);
+    const payload = await response.json();
+    const rows = payload.Results?.series?.[0]?.data?.filter((row) => /^M(0[1-9]|1[0-2])$/.test(row.period)) || [];
+    const current = rows.sort((a, b) => `${a.year}-${a.period}`.localeCompare(`${b.year}-${b.period}`)).at(-1);
+    if (!current) throw new Error('BLS returned no construction wage observations.');
+    return res.json({ source: 'BLS CES construction average hourly earnings', seriesId: 'CES2000000003', current: { date: `${current.year}-${current.period.slice(1)}`, value: Number(current.value) }, sourceUrl: 'https://api.bls.gov/publicAPI/v2/timeseries/data/CES2000000003' });
+  } catch (error) { return res.status(502).json({ error: error instanceof Error ? error.message : 'BLS labor request failed' }); }
+});
+
+app.get('/api/construction-data', async (_req, res) => {
+  return res.status(424).json({ error: 'Census API key required in this deployment environment.', status: 'key_required' });
+});
 
 const dist = path.resolve(__dirname, '../dist');
 app.use(express.static(dist));

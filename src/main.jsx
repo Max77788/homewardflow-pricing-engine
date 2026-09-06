@@ -22,6 +22,8 @@ export default function App() {
   const [market, setMarket] = useState(null);
   const [sources, setSources] = useState([]);
   const [marketState, setMarketState] = useState('loading');
+  const [labor, setLabor] = useState(null);
+  const [construction, setConstruction] = useState(null);
   const [errors, setErrors] = useState([]);
   const [openBom, setOpenBom] = useState({});
 
@@ -36,6 +38,12 @@ export default function App() {
       .then((data) => { setMarket(data); setMarketState('ready'); })
       .catch(() => { setMarket(null); setMarketState('error'); });
   }, [project.seriesId, project.baseMonth]);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/labor-data').then((response) => response.ok ? response.json() : null), fetch('/api/construction-data').then((response) => response.ok ? response.json() : null)])
+      .then(([laborData, constructionData]) => { setLabor(laborData); setConstruction(constructionData); })
+      .catch(() => {});
+  }, []);
 
   const selectedItems = useMemo(() => SCOPE_CATALOG.filter((catalog) => items[catalog.id]).map((catalog) => ({ ...inputs[catalog.id], id: catalog.id })), [items, inputs]);
   const condition = CONDITIONS.find((entry) => entry.id === project.conditionId) || CONDITIONS[0];
@@ -72,6 +80,7 @@ export default function App() {
       <Field label="Material base month"><input type="month" value={project.baseMonth} onChange={(e) => updateProject('baseMonth', e.target.value)} /><small>BLS PPI escalation anchor</small></Field>
       <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default WPU081. Verify series meaning before production use.</small></Field>
       <div className="source-card"><strong>Source status</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'Live BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>
+      <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · {labor.current.date}</small>}{construction && <small>{construction.housingUnits.value.toLocaleString()} housing units · {construction.permits.value.toLocaleString()} permits</small>}<small>Context only. Local labor and verified unit costs remain editable.</small></div>
     </section>
 
     <section className="scope-header"><h2>Scope of work</h2><p>Enter local costs and labor. Blank benchmark fields stay unavailable instead of becoming fake market data.</p></section>
