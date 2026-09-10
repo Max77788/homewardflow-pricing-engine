@@ -11,17 +11,20 @@ export const QUALITY = [
   { id: 'premium', label: 'Premium', mult: 1.25 },
 ];
 
+const DEMO_LABOR_RATE = 40;
+export { DEMO_LABOR_RATE };
+
 export const SCOPE_CATALOG = [
-  { id: 'drywall', name: 'Drywall replacement', unit: 'SF', trade: 'Drywall installers', ppiSeries: 'WPU081' },
-  { id: 'vanity', name: 'Vanity replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081' },
-  { id: 'toilet', name: 'Toilet replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081' },
-  { id: 'flooring', name: 'Flooring replacement (LVP)', unit: 'SF', trade: 'Floor layers', ppiSeries: 'WPU081' },
-  { id: 'paint-int', name: 'Interior painting', unit: 'SF', trade: 'Painters', ppiSeries: 'WPU081' },
-  { id: 'baseboard', name: 'Baseboard / trim replacement', unit: 'LF', trade: 'Carpenters', ppiSeries: 'WPU081' },
-  { id: 'cabinets', name: 'Cabinet replacement', unit: 'LF', trade: 'Carpenters', ppiSeries: 'WPU081' },
-  { id: 'water-heater', name: 'Water heater replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081' },
-  { id: 'window', name: 'Window replacement', unit: 'unit', trade: 'Carpenters', ppiSeries: 'WPU081' },
-  { id: 'roofing', name: 'Roofing - asphalt shingle', unit: 'SF', trade: 'Roofers', ppiSeries: 'WPU081' },
+  { id: 'drywall', name: 'Drywall replacement', unit: 'SF', trade: 'Drywall installers', ppiSeries: 'WPU081', demoMaterial: 1.85, demoHours: 0.025, demoLow: 4.25, demoMedian: 5.75, demoP60: 6.60 },
+  { id: 'vanity', name: 'Vanity replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081', demoMaterial: 425, demoHours: 4, demoLow: 850, demoMedian: 1150, demoP60: 1325 },
+  { id: 'toilet', name: 'Toilet replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081', demoMaterial: 190, demoHours: 2, demoLow: 425, demoMedian: 575, demoP60: 690 },
+  { id: 'flooring', name: 'Flooring replacement (LVP)', unit: 'SF', trade: 'Floor layers', ppiSeries: 'WPU081', demoMaterial: 3.25, demoHours: 0.035, demoLow: 7.25, demoMedian: 9.50, demoP60: 11.25 },
+  { id: 'paint-int', name: 'Interior painting', unit: 'SF', trade: 'Painters', ppiSeries: 'WPU081', demoMaterial: 0.55, demoHours: 0.012, demoLow: 1.65, demoMedian: 2.35, demoP60: 2.85 },
+  { id: 'baseboard', name: 'Baseboard / trim replacement', unit: 'LF', trade: 'Carpenters', ppiSeries: 'WPU081', demoMaterial: 2.10, demoHours: 0.04, demoLow: 5.25, demoMedian: 7.25, demoP60: 8.50 },
+  { id: 'cabinets', name: 'Cabinet replacement', unit: 'LF', trade: 'Carpenters', ppiSeries: 'WPU081', demoMaterial: 145, demoHours: 0.75, demoLow: 325, demoMedian: 475, demoP60: 575 },
+  { id: 'water-heater', name: 'Water heater replacement', unit: 'unit', trade: 'Plumbers', ppiSeries: 'WPU081', demoMaterial: 850, demoHours: 4, demoLow: 1450, demoMedian: 1850, demoP60: 2200 },
+  { id: 'window', name: 'Window replacement', unit: 'unit', trade: 'Carpenters', ppiSeries: 'WPU081', demoMaterial: 475, demoHours: 3, demoLow: 950, demoMedian: 1250, demoP60: 1500 },
+  { id: 'roofing', name: 'Roofing - asphalt shingle', unit: 'SF', trade: 'Roofers', ppiSeries: 'WPU081', demoMaterial: 2.75, demoHours: 0.03, demoLow: 5.50, demoMedian: 7.25, demoP60: 8.75 },
 ];
 
 const money = (value) => Number(value || 0);

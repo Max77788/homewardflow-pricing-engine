@@ -1,7 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { calculateEstimate, validateEstimateInput } from './calculations.js';
+import { calculateEstimate, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE } from './calculations.js';
 
 describe('pricing calculations', () => {
+  it('supports a populated demo baseline for the default scope', () => {
+    const drywall = SCOPE_CATALOG.find((entry) => entry.id === 'drywall');
+    const result = calculateEstimate({
+      marginPct: 35, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: drywall.id, quantity: 100, materialCostPerUnit: drywall.demoMaterial, laborHoursPerUnit: drywall.demoHours, laborRate: 40, benchmarkLow: drywall.demoLow, benchmarkMedian: drywall.demoMedian, benchmarkP60: drywall.demoP60 }],
+    });
+    expect(result.direct).toBeGreaterThan(0);
+    expect(result.materials).toBeGreaterThan(0);
+    expect(result.labor).toBeGreaterThan(0);
+    expect(result.marketMedian).toBeGreaterThan(0);
+    expect(result.marketP60).toBeGreaterThan(result.marketMedian);
+    expect(result.recommended).toBeGreaterThan(0);
+    expect(result.overallConfidence).not.toBeNull();
+  });
+
+  it('defines a non-empty fallback labor rate for immediate scope population', () => {
+    expect(DEMO_LABOR_RATE).toBeGreaterThan(0);
+    const drywall = SCOPE_CATALOG.find((entry) => entry.id === 'drywall');
+    expect(drywall.demoMaterial).toBeGreaterThan(0);
+    expect(drywall.demoHours).toBeGreaterThan(0);
+    expect(drywall.demoLow).toBeGreaterThan(0);
+    expect(drywall.demoMedian).toBeGreaterThan(drywall.demoLow);
+    expect(drywall.demoP60).toBeGreaterThan(drywall.demoMedian);
+  });
+
   it('uses entered material and labor inputs, then applies live PPI adjustment', () => {
     const result = calculateEstimate({
       marginPct: 35,

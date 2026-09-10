@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useState } from 'react';
-import { CONDITIONS, QUALITY, SCOPE_CATALOG, calculateEstimate, validateEstimateInput } from './calculations.js';
+import { CONDITIONS, QUALITY, SCOPE_CATALOG, DEMO_LABOR_RATE, calculateEstimate, validateEstimateInput } from './calculations.js';
 import './styles.css';
 
 const STATES = [
@@ -11,8 +11,8 @@ const STATES = [
 
 const emptyItem = (catalog) => ({
   id: catalog.id, quantity: catalog.unit === 'unit' ? 1 : 100,
-  materialCostPerUnit: '', laborHoursPerUnit: '', laborRate: '',
-  benchmarkLow: '', benchmarkMedian: '', benchmarkP60: '',
+  materialCostPerUnit: catalog.demoMaterial, laborHoursPerUnit: catalog.demoHours, laborRate: DEMO_LABOR_RATE,
+  benchmarkLow: catalog.demoLow, benchmarkMedian: catalog.demoMedian, benchmarkP60: catalog.demoP60,
 });
 
 export default function App() {
@@ -41,7 +41,10 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([fetch('/api/labor-data').then((response) => response.ok ? response.json() : null), fetch('/api/construction-data').then((response) => response.ok ? response.json() : null)])
-      .then(([laborData, constructionData]) => { setLabor(laborData); setConstruction(constructionData); })
+      .then(([laborData, constructionData]) => {
+        setLabor(laborData); setConstruction(constructionData);
+        if (laborData?.current?.value) setInputs((current) => Object.fromEntries(Object.entries(current).map(([id, item]) => [id, item.laborRate === '' || item.laborRate === DEMO_LABOR_RATE ? { ...item, laborRate: laborData.current.value } : item])));
+      })
       .catch(() => {});
   }, []);
 
@@ -83,7 +86,7 @@ export default function App() {
       <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · {labor.current.date}</small>}{construction && <small>{construction.housingUnits.value.toLocaleString()} housing units · {construction.permits.value.toLocaleString()} permits</small>}<small>Context only. Local labor and verified unit costs remain editable.</small></div>
     </section>
 
-    <section className="scope-header"><h2>Scope of work</h2><p>Enter local costs and labor. Blank benchmark fields stay unavailable instead of becoming fake market data.</p></section>
+    <section className="scope-header"><h2>Scope of work</h2><p>Demo baseline values are preloaded for the presentation. Replace them with verified local costs or licensed benchmark data for production estimates.</p></section>
     <div className="pim-scope-grid">{SCOPE_CATALOG.map((catalog) => <div className={`scope-card ${items[catalog.id] ? 'selected' : ''}`} key={catalog.id}>
       <label className="scope-title"><input type="checkbox" checked={!!items[catalog.id]} onChange={() => toggle(catalog.id)} /><span>{catalog.name}<small>/{catalog.unit} · {catalog.trade}</small></span></label>
       {items[catalog.id] && <div className="scope-inputs">
