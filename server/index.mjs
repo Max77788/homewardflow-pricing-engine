@@ -69,8 +69,8 @@ app.get('/api/source-status', (_req, res) => res.json({
     { id: 'bls-ppi', name: 'BLS Producer Price Index', status: 'live_api', note: 'Used for material escalation from the selected base month.' },
     { id: 'bls-ces', name: 'BLS Construction Average Hourly Earnings', status: 'live_api', note: 'No-key nationwide construction wage baseline; local labor overrides remain available.' },
     { id: 'oews', name: 'BLS Occupational Employment and Wage Statistics', status: 'public_file', note: 'Official public annual OEWS files can be imported when a release is selected; no API key is required.' },
-    { id: 'census-acs', name: 'U.S. Census American Community Survey', status: 'key_required', note: 'The Census API currently requires an API key in this deployment environment.' },
-    { id: 'census-permits', name: 'U.S. Census Building Permits Survey', status: 'key_required', note: 'The Census API currently requires an API key in this deployment environment.' },
+    { id: 'census-acs', name: 'U.S. Census American Community Survey', status: process.env.CENSUS_API_KEY ? 'live_api' : 'key_required', note: process.env.CENSUS_API_KEY ? 'Nationwide housing-unit context from the 2023 ACS 5-year API.' : 'Add CENSUS_API_KEY to enable this source.' },
+    { id: 'census-permits', name: 'U.S. Census Building Permits Survey', status: 'not_configured', note: 'Not enabled until a verified Building Permits dataset and release are configured.' },
     { id: 'craftsman', name: 'Craftsman', status: process.env.CRAFTSMAN_API_URL ? 'configured' : 'not_configured', note: 'Optional licensed market benchmark adapter. No benchmark values are fabricated when unavailable.' },
   ],
 }));
@@ -87,8 +87,22 @@ app.get('/api/labor-data', async (_req, res) => {
   } catch (error) { return res.status(502).json({ error: error instanceof Error ? error.message : 'BLS labor request failed' }); }
 });
 
+async function censusJson(url) {
+  const response = await fetch(url, { headers: { 'user-agent': 'HomewardFlowPricingEngine/1.0' } });
+  const contentType = response.headers.get('content-type') || '';
+  if (!response.ok) throw new Error(`Census returned HTTP ${response.status}`);
+  if (!contentType.includes('json')) throw new Error('Census returned a non-JSON response.');
+  return response.json();
+}
+
 app.get('/api/construction-data', async (_req, res) => {
-  return res.status(424).json({ error: 'Census API key required in this deployment environment.', status: 'key_required' });
+  if (!process.env.CENSUS_API_KEY) return res.status(424).json({ error: 'Census API key required in this deployment environment.', status: 'key_required' });
+  try {
+    const acs = await censusJson(`https://api.census.gov/data/2023/acs/acs5?get=NAME,B25001_001E&for=us:1&key=${encodeURIComponent(process.env.CENSUS_API_KEY)}`);
+    const housingUnits = Number(acs?.[1]?.[1]);
+    if (!Number.isFinite(housingUnits)) throw new Error('Census ACS returned no housing-unit value.');
+    return res.json({ source: 'U.S. Census Bureau American Community Survey API', housingUnits: { value: housingUnits, year: 2023 }, permits: null, notes: ['Building Permits data is not enabled because the Census endpoint requires a separate dataset configuration.'] });
+  } catch (error) { return res.status(502).json({ error: error instanceof Error ? error.message : 'Census request failed', status: 'upstream_error' }); }
 });
 
 const dist = path.resolve(__dirname, '../dist');
