@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateEstimate, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE } from './calculations.js';
+import { calculateEstimate, clampMarginPct, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE } from './calculations.js';
 
 describe('pricing calculations', () => {
   it('supports a populated demo baseline for the default scope', () => {
@@ -54,6 +54,18 @@ describe('pricing calculations', () => {
     expect(result.items[0].confidence).toBe(null);
     expect(result.marketMedian).toBe(null);
     expect(result.sources.some((source) => source.status === 'user_input')).toBe(true);
+  });
+
+  it('clamps entered margin to the supported 0%-90% range before pricing', () => {
+    expect(clampMarginPct('100')).toBe(90);
+    expect(clampMarginPct('-5')).toBe(0);
+    expect(clampMarginPct('35')).toBe(35);
+
+    const estimate = calculateEstimate({
+      marginPct: 100, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: 'drywall', quantity: 1, materialCostPerUnit: 100, laborHoursPerUnit: 0, laborRate: 0 }],
+    });
+    expect(estimate.recommended).toBeCloseTo(1000, 6);
   });
 
   it('requires proper project and line-item inputs', () => {

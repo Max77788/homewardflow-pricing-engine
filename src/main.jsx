@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useState } from 'react';
-import { CONDITIONS, QUALITY, SCOPE_CATALOG, DEMO_LABOR_RATE, calculateEstimate, validateEstimateInput } from './calculations.js';
+import { CONDITIONS, QUALITY, SCOPE_CATALOG, DEMO_LABOR_RATE, calculateEstimate, clampMarginPct, validateEstimateInput } from './calculations.js';
 import './styles.css';
 
 const STATES = [
@@ -79,7 +79,7 @@ export default function App() {
       <Field label="ZIP code"><input inputMode="numeric" maxLength="5" value={project.zip} onChange={(e) => updateProject('zip', e.target.value.replace(/\D/g, '').slice(0, 5))} placeholder="21201" /></Field>
       <Field label="Condition"><select value={project.conditionId} onChange={(e) => updateProject('conditionId', e.target.value)}>{CONDITIONS.map((entry) => <option key={entry.id} value={entry.id}>{entry.label} · ×{entry.mult.toFixed(2)}</option>)}</select></Field>
       <Field label="Quality tier"><select value={project.qualityId} onChange={(e) => updateProject('qualityId', e.target.value)}>{QUALITY.map((entry) => <option key={entry.id} value={entry.id}>{entry.label} · ×{entry.mult.toFixed(2)}</option>)}</select></Field>
-      <Field label="Target margin (%)"><input type="number" min="0" max="90" value={project.marginPct} onChange={(e) => updateProject('marginPct', e.target.value)} /><small>direct ÷ (1 - margin)</small></Field>
+      <Field label="Target margin (%)"><input type="number" min="0" max="90" value={project.marginPct} onChange={(e) => updateProject('marginPct', clampMarginPct(e.target.value))} /><small>direct ÷ (1 - margin)</small></Field>
       <Field label="Material base month"><input type="month" value={project.baseMonth} onChange={(e) => updateProject('baseMonth', e.target.value)} /><small>BLS PPI escalation anchor</small></Field>
       <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default WPU081. Verify series meaning before production use.</small></Field>
       <div className="source-card"><strong>Source status</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'Live BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>

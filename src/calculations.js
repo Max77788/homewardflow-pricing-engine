@@ -29,12 +29,18 @@ export const SCOPE_CATALOG = [
 
 const money = (value) => Number(value || 0);
 
+export function clampMarginPct(value) {
+  const margin = Number(value);
+  if (!Number.isFinite(margin)) return 0;
+  return Math.min(90, Math.max(0, margin));
+}
+
 export function calculateLineItem(item, marginPct, conditionMult, qualityMult, materialIndexFactor) {
   const quantity = money(item.quantity);
   const materialTotal = money(item.materialCostPerUnit) * quantity * materialIndexFactor * conditionMult * qualityMult;
   const laborTotal = money(item.laborHoursPerUnit) * quantity * money(item.laborRate);
   const directTotal = materialTotal + laborTotal;
-  const recommendedPrice = directTotal / Math.max(1 - marginPct / 100, 0.01);
+  const recommendedPrice = directTotal / (1 - clampMarginPct(marginPct) / 100);
   const benchmark = ['benchmarkLow', 'benchmarkMedian', 'benchmarkP60'].every((key) => Number.isFinite(Number(item[key])) && Number(item[key]) > 0)
     ? {
         low: money(item.benchmarkLow) * quantity,
