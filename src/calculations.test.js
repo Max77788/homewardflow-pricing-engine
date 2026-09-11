@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { calculateEstimate, clampMarginPct, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE } from './calculations.js';
+import { calculateEstimate, clampMarginPct, DEFAULT_PPI_SERIES, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE } from './calculations.js';
 
 describe('pricing calculations', () => {
+  it('uses WPUIP2321001 as the default material PPI series', () => {
+    expect(DEFAULT_PPI_SERIES).toBe('WPUIP2321001');
+    expect(SCOPE_CATALOG.every((entry) => entry.ppiSeries === DEFAULT_PPI_SERIES)).toBe(true);
+  });
+
   it('supports a populated demo baseline for the default scope', () => {
     const drywall = SCOPE_CATALOG.find((entry) => entry.id === 'drywall');
     const result = calculateEstimate({

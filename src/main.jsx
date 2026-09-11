@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useState } from 'react';
-import { CONDITIONS, QUALITY, SCOPE_CATALOG, DEMO_LABOR_RATE, calculateEstimate, clampMarginPct, validateEstimateInput } from './calculations.js';
+import { CONDITIONS, QUALITY, SCOPE_CATALOG, DEMO_LABOR_RATE, DEFAULT_PPI_SERIES, calculateEstimate, clampMarginPct, validateEstimateInput } from './calculations.js';
 import './styles.css';
 
 const STATES = [
@@ -16,7 +16,7 @@ const emptyItem = (catalog) => ({
 });
 
 export default function App() {
-  const [project, setProject] = useState({ projectName: '', clientName: '', address: '', city: '', stateCode: 'MD', zip: '', baseMonth: '2025-01', marginPct: 35, conditionId: 'normal', qualityId: 'standard', seriesId: 'WPU081' });
+  const [project, setProject] = useState({ projectName: '', clientName: '', address: '', city: '', stateCode: 'MD', zip: '', baseMonth: '2025-01', marginPct: 35, conditionId: 'normal', qualityId: 'standard', seriesId: DEFAULT_PPI_SERIES });
   const [items, setItems] = useState({ drywall: true, vanity: true });
   const [inputs, setInputs] = useState(() => Object.fromEntries(SCOPE_CATALOG.map((catalog) => [catalog.id, emptyItem(catalog)])));
   const [market, setMarket] = useState(null);
@@ -81,7 +81,7 @@ export default function App() {
       <Field label="Quality tier"><select value={project.qualityId} onChange={(e) => updateProject('qualityId', e.target.value)}>{QUALITY.map((entry) => <option key={entry.id} value={entry.id}>{entry.label} · ×{entry.mult.toFixed(2)}</option>)}</select></Field>
       <Field label="Target margin (%)"><input type="number" min="0" max="90" value={project.marginPct} onChange={(e) => updateProject('marginPct', clampMarginPct(e.target.value))} /><small>direct ÷ (1 - margin)</small></Field>
       <Field label="Material base month"><input type="month" value={project.baseMonth} onChange={(e) => updateProject('baseMonth', e.target.value)} /><small>BLS PPI escalation anchor</small></Field>
-      <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default WPU081. Verify series meaning before production use.</small></Field>
+      <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default {DEFAULT_PPI_SERIES}. Verify series meaning before production use.</small></Field>
       <div className="source-card"><strong>Source status</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'Live BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>
       <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · {labor.current.date}</small>}{construction?.housingUnits?.value ? <small>{construction.housingUnits.value.toLocaleString()} housing units{construction?.permits?.value ? ` · ${construction.permits.value.toLocaleString()} permits` : ''}</small> : null}<small>Context only. Local labor and verified unit costs remain editable.</small></div>
     </section>

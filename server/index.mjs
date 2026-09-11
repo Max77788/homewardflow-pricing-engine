@@ -44,7 +44,7 @@ async function fetchBls(seriesId) {
 }
 
 app.get('/api/market-data', async (req, res) => {
-  const seriesId = String(req.query.seriesId || 'WPU081');
+  const seriesId = String(req.query.seriesId || 'WPUIP2321001');
   const baseMonth = String(req.query.baseMonth || '2025-01');
   if (!/^WPU[A-Z0-9]+$/.test(seriesId)) return res.status(400).json({ error: 'seriesId must be a BLS PPI series ID.' });
   if (!validMonth(baseMonth)) return res.status(400).json({ error: 'baseMonth must use YYYY-MM.' });
