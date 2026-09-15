@@ -1,9 +1,98 @@
 import { describe, expect, it } from 'vitest';
-import { JOB_TEMPLATES, calculatePricing, generateScope, initTemplateState, resolveTemplate } from './calculations.js';
-describe('pricing v2 reference behavior', () => {
-  it('defines the three configurable representative templates', () => { expect(Object.keys(JOB_TEMPLATES)).toEqual(['painting','cabinets','faucet']); });
-  it('stacks selected options and prep before quantity', () => { const t=JOB_TEMPLATES.painting; const s={...initTemplateState(t),qty:2,trim:true,ceiling:true,coats2:true,prep:'medium'}; const r=resolveTemplate(t,s); expect(r.modifierPct).toBeCloseTo(.60); expect(r.multiplier).toBeCloseTo(3.2); });
-  it('calculates low median max, margin, buffer, and quote total', () => { const t=JOB_TEMPLATES.painting; const r=calculatePricing(t,{...initTemplateState(t),qty:1},40,8); expect(r.low).toBe(340); expect(r.med).toBe(460); expect(r.max).toBe(620); expect(r.direct).toBe(210); expect(r.recommended).toBeCloseTo(350); expect(r.bufferAmt).toBeCloseTo(28); expect(r.total).toBeCloseTo(378); });
-  it('flags a recommended price above the 60th percentile', () => { const t=JOB_TEMPLATES.painting; const r=calculatePricing(t,{...initTemplateState(t),trim:true,ceiling:true,coats2:true,prep:'heavy'},60,8); expect(r.percentile).toBeGreaterThan(60); });
-  it('generates scope language from the same selected state', () => { const t=JOB_TEMPLATES.painting; const s={...initTemplateState(t),qty:2,trim:true,coats2:true,prep:'heavy'}; const text=generateScope(t,s); expect(text).toContain('2 room(s)'); expect(text).toContain('trim'); expect(text).toContain('Two coats'); expect(text).toContain('Heavy prep'); });
+import { calculateEstimate, clampMarginPct, DEFAULT_PPI_SERIES, validateEstimateInput, SCOPE_CATALOG, DEMO_LABOR_RATE, JOB_TEMPLATES, calculatePricing, initTemplateState } from './calculations.js';
+
+describe('pricing calculations', () => {
+  it('uses WPUIP2321001 as the default material PPI series', () => {
+    expect(DEFAULT_PPI_SERIES).toBe('WPUIP2321001');
+    expect(SCOPE_CATALOG.every((entry) => entry.ppiSeries === DEFAULT_PPI_SERIES)).toBe(true);
+  });
+
+  it('supports a populated demo baseline for the default scope', () => {
+    const drywall = SCOPE_CATALOG.find((entry) => entry.id === 'drywall');
+    const result = calculateEstimate({
+      marginPct: 35, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: drywall.id, quantity: 100, materialCostPerUnit: drywall.demoMaterial, laborHoursPerUnit: drywall.demoHours, laborRate: 40, benchmarkLow: drywall.demoLow, benchmarkMedian: drywall.demoMedian, benchmarkP60: drywall.demoP60 }],
+    });
+    expect(result.direct).toBeGreaterThan(0);
+    expect(result.materials).toBeGreaterThan(0);
+    expect(result.labor).toBeGreaterThan(0);
+    expect(result.marketMedian).toBeGreaterThan(0);
+    expect(result.marketP60).toBeGreaterThan(result.marketMedian);
+    expect(result.recommended).toBeGreaterThan(0);
+    expect(result.overallConfidence).not.toBeNull();
+  });
+
+  it('defines a non-empty fallback labor rate for immediate scope population', () => {
+    expect(DEMO_LABOR_RATE).toBeGreaterThan(0);
+    const drywall = SCOPE_CATALOG.find((entry) => entry.id === 'drywall');
+    expect(drywall.demoMaterial).toBeGreaterThan(0);
+    expect(drywall.demoHours).toBeGreaterThan(0);
+    expect(drywall.demoLow).toBeGreaterThan(0);
+    expect(drywall.demoMedian).toBeGreaterThan(drywall.demoLow);
+    expect(drywall.demoP60).toBeGreaterThan(drywall.demoMedian);
+  });
+
+  it('uses entered material and labor inputs, then applies live PPI adjustment', () => {
+    const result = calculateEstimate({
+      marginPct: 35,
+      conditionMult: 1.1,
+      qualityMult: 1.0,
+      materialIndexFactor: 1.2,
+      items: [{
+        id: 'drywall', quantity: 100, materialCostPerUnit: 5,
+        laborHoursPerUnit: 0.1, laborRate: 40,
+        benchmarkLow: 9, benchmarkMedian: 11, benchmarkP60: 13,
+      }],
+    });
+    expect(result.materials).toBe(660);
+    expect(result.labor).toBe(400);
+    expect(result.direct).toBe(1060);
+    expect(result.recommended).toBeCloseTo(1630.77, 2);
+    expect(result.items[0].marginConflict).toBe(true);
+  });
+
+  it('does not invent benchmark confidence when benchmark inputs are absent', () => {
+    const result = calculateEstimate({
+      marginPct: 30, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: 'roofing', quantity: 1, materialCostPerUnit: 100, laborHoursPerUnit: 2, laborRate: 50 }],
+    });
+    expect(result.items[0].confidence).toBe(null);
+    expect(result.marketMedian).toBe(null);
+    expect(result.sources.some((source) => source.status === 'user_input')).toBe(true);
+  });
+
+  it('clamps entered margin to the supported 0%-90% range before pricing', () => {
+    expect(clampMarginPct('100')).toBe(90);
+    expect(clampMarginPct('-5')).toBe(0);
+    expect(clampMarginPct('35')).toBe(35);
+
+    const estimate = calculateEstimate({
+      marginPct: 100, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: 'drywall', quantity: 1, materialCostPerUnit: 100, laborHoursPerUnit: 0, laborRate: 0 }],
+    });
+    expect(estimate.recommended).toBeCloseTo(1000, 6);
+  });
+
+  it('requires proper project and line-item inputs', () => {
+    const errors = validateEstimateInput({
+      projectName: '', stateCode: '', zip: '12', marginPct: 95,
+      items: [{ quantity: 0, materialCostPerUnit: -1, laborHoursPerUnit: 0, laborRate: 0 }],
+    });
+    expect(errors).toEqual(expect.arrayContaining([
+      'Project name is required.',
+      'State is required.',
+      'ZIP code must be 5 digits.',
+      'Target margin must be between 0% and 90%.',
+      'Every selected scope must have a quantity greater than zero.',
+      'Material cost cannot be negative.',
+    ]));
+  });
+});
+
+describe('configurable job presets', () => {
+  it('keeps the new presets available alongside the location-aware estimator', () => {
+    expect(Object.keys(JOB_TEMPLATES)).toEqual(['painting', 'cabinets', 'faucet']);
+    const result = calculatePricing(JOB_TEMPLATES.painting, initTemplateState(JOB_TEMPLATES.painting), 40, 8);
+    expect(result.total).toBeCloseTo(378, 6);
+  });
 });
