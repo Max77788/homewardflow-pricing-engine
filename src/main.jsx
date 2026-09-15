@@ -137,7 +137,7 @@ export default function App() {
   </main>;
 }
 
-function Field({ label, children }) { return <label className="field"><span>{label}</span>{children}</label>; }
+function Field({ label, children }) { return <div className="field"><span>{label}</span>{children}</div>; }
 function Metric({ label, value }) { return <div className="metric"><small>{label}</small><strong>{value}</strong></div>; }
 function Row({ label, value, bold }) { return <div className={`fig-row ${bold ? 'bold' : ''}`}><span>{label}</span><strong>{value}</strong></div>; }
 
