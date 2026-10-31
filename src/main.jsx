@@ -15,10 +15,17 @@ const emptyItem = (catalog) => ({
   benchmarkLow: catalog.demoLow, benchmarkMedian: catalog.demoMedian, benchmarkP60: catalog.demoP60,
 });
 
+const DRAFT_KEY = 'homewardflow-pricing-draft-v1';
+const readDraft = () => {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
+};
+const savedDraft = readDraft();
+const DEFAULT_PROJECT = { projectName: '', clientName: '', address: '', city: '', stateCode: 'MD', zip: '', baseMonth: '2025-01', marginPct: 35, conditionId: 'normal', qualityId: 'standard', seriesId: DEFAULT_PPI_SERIES };
+
 export default function App() {
-  const [project, setProject] = useState({ projectName: '', clientName: '', address: '', city: '', stateCode: 'MD', zip: '', baseMonth: '2025-01', marginPct: 35, conditionId: 'normal', qualityId: 'standard', seriesId: DEFAULT_PPI_SERIES });
-  const [items, setItems] = useState({ drywall: true, vanity: true });
-  const [inputs, setInputs] = useState(() => Object.fromEntries(SCOPE_CATALOG.map((catalog) => [catalog.id, emptyItem(catalog)])));
+  const [project, setProject] = useState(() => ({ ...DEFAULT_PROJECT, ...(savedDraft?.project || {}) }));
+  const [items, setItems] = useState(() => savedDraft?.items || { drywall: true, vanity: true });
+  const [inputs, setInputs] = useState(() => ({ ...Object.fromEntries(SCOPE_CATALOG.map((catalog) => [catalog.id, emptyItem(catalog)])), ...(savedDraft?.inputs || {}) }));
   const [market, setMarket] = useState(null);
   const [sources, setSources] = useState([]);
   const [marketState, setMarketState] = useState('loading');
@@ -26,9 +33,17 @@ export default function App() {
   const [construction, setConstruction] = useState(null);
   const [errors, setErrors] = useState([]);
   const [openBom, setOpenBom] = useState({});
-  const [jobType, setJobType] = useState('painting');
-  const [jobState, setJobState] = useState(() => initTemplateState(JOB_TEMPLATES.painting));
-  const [jobBuffer, setJobBuffer] = useState(8);
+  const [jobType, setJobType] = useState(() => JOB_TEMPLATES[savedDraft?.jobType] ? savedDraft.jobType : 'painting');
+  const [jobState, setJobState] = useState(() => savedDraft?.jobState || initTemplateState(JOB_TEMPLATES.painting));
+  const [jobBuffer, setJobBuffer] = useState(() => Number.isFinite(savedDraft?.jobBuffer) ? savedDraft.jobBuffer : 8);
+  const [draftSaved, setDraftSaved] = useState(Boolean(savedDraft));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ project, items, inputs, jobType, jobState, jobBuffer }));
+      setDraftSaved(true);
+    } catch { setDraftSaved(false); }
+  }, [project, items, inputs, jobType, jobState, jobBuffer]);
 
   useEffect(() => {
     fetch(`/api/source-status`).then((response) => response.json()).then((data) => setSources(data.sources || [])).catch(() => {});
@@ -71,10 +86,14 @@ export default function App() {
 
   return <main className="pim-root">
     <header className="pim-head">
-      <div><h1>Pricing Intelligence - Job Estimate</h1><div className="pim-ticketno">HOMEWARDFLOW · LIVE DATA MODE</div></div>
+      <div><div className="brand-kicker">HOMEWARDFLOW <span>·</span> CONTRACTOR WORKSPACE</div><h1>Build a confident estimate.</h1><div className="pim-ticketno">Local costs, transparent assumptions, and a client-ready quote.</div></div>
       <div className="pim-meta">{project.city || 'City'} · {STATES.find(([code]) => code === project.stateCode)?.[1]}<br />BLS PPI factor · {market ? `×${market.materialIndexFactor.toFixed(4)}` : marketState}</div>
     </header>
+    <div className="workspace-actions"><span className="save-status"><i className={draftSaved ? 'saved-dot' : 'unsaved-dot'} />{draftSaved ? 'Draft saved in this browser' : 'Draft could not be saved'}</span><div><button type="button" className="secondary-button" onClick={() => window.print()}>Print / Save PDF</button><button type="button" className="secondary-button" onClick={() => { if (window.confirm('Start a new estimate? This clears the current browser draft.')) { localStorage.removeItem(DRAFT_KEY); window.location.reload(); } }}>New estimate</button></div></div>
+    <p className="privacy-note">Your estimate draft is stored only in this browser. It is not uploaded to a server.</p>
+    <div className="print-meta"><strong>{project.projectName || 'Untitled estimate'}</strong>{project.clientName && <span>Client: {project.clientName}</span>}{(project.address || project.city || project.stateCode) && <span>{[project.address, project.city, project.stateCode, project.zip].filter(Boolean).join(', ')}</span>}<span>Prepared {new Date().toLocaleDateString()}</span><span className="print-caveat">Verify starter rates and market benchmarks against current local sources. Add taxes, permits, disposal, travel, and other applicable costs before issuing the quote.</span></div>
 
+    <section className="scope-header"><h2>1. Project details</h2><p>Set the job location and pricing assumptions.</p></section>
     <section className="pim-settings">
       <Field label="Project name"><input value={project.projectName} onChange={(e) => updateProject('projectName', e.target.value)} placeholder="Blue Tape estimate" /></Field>
       <Field label="Client / company"><input value={project.clientName} onChange={(e) => updateProject('clientName', e.target.value)} placeholder="Client name" /></Field>
@@ -87,11 +106,11 @@ export default function App() {
       <Field label="Target margin (%)"><input type="number" min="0" max="90" value={project.marginPct} onChange={(e) => updateProject('marginPct', clampMarginPct(e.target.value))} /><small>direct ÷ (1 - margin)</small></Field>
       <Field label="Material base month"><input type="month" value={project.baseMonth} onChange={(e) => updateProject('baseMonth', e.target.value)} /><small>BLS PPI escalation anchor</small></Field>
       <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default {DEFAULT_PPI_SERIES}. Verify series meaning before production use.</small></Field>
-      <div className="source-card"><strong>Source status</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'Live BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>
+      <div className="source-card"><strong>Material index source</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable · factor defaults to 1.00'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>
       <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · {labor.current.date}</small>}{construction?.housingUnits?.value ? <small>{construction.housingUnits.value.toLocaleString()} housing units{construction?.permits?.value ? ` · ${construction.permits.value.toLocaleString()} permits` : ''}</small> : null}<small>Context only. Local labor and verified unit costs remain editable.</small></div>
     </section>
 
-    <section className="scope-header"><h2>Scope of work</h2><p>Demo baseline values are preloaded for the presentation. Replace them with verified local costs or licensed benchmark data for production estimates.</p></section>
+    <section className="scope-header"><h2>2. Add work items</h2><p>Sample starter values are estimates only. Verify against your own supplier and labor costs.</p></section>
     <div className="pim-scope-grid">{SCOPE_CATALOG.map((catalog) => <div className={`scope-card ${items[catalog.id] ? 'selected' : ''}`} key={catalog.id}>
       <label className="scope-title"><input type="checkbox" checked={!!items[catalog.id]} onChange={() => toggle(catalog.id)} /><span>{catalog.name}<small>/{catalog.unit} · {catalog.trade}</small></span></label>
       {items[catalog.id] && <div className="scope-inputs">
@@ -106,7 +125,7 @@ export default function App() {
     </div>)}</div>
 
     <section className="quick-estimate">
-      <div className="scope-header"><h2>Quick job configuration</h2><p>Configurable presets use the property location and ZIP above as the estimate context.</p></div>
+      <div className="scope-header"><h2>Quick job presets</h2><p>Fast planning ranges for common small jobs. Verify before quoting.</p></div>
       <div className="template-row">{Object.entries(JOB_TEMPLATES).map(([id, template]) => <button type="button" key={id} className={`tbtn ${jobType === id ? 'active' : ''}`} onClick={() => { setJobType(id); setJobState(initTemplateState(template)); }}>{template.name}</button>)}</div>
       <div className="quick-grid"><Field label={jobTemplate.qtyLabel}><div className="stepper"><button type="button" onClick={() => setJobState((s) => ({ ...s, qty: Math.max(1, s.qty - 1) }))}>-</button><span>{jobState.qty}</span><button type="button" onClick={() => setJobState((s) => ({ ...s, qty: Math.min(10, s.qty + 1) }))}>+</button></div></Field>
         <Field label="Scope permutations">{jobTemplate.options.map((option) => <label className="quick-option" key={option.id}><input type="checkbox" checked={!!jobState[option.id]} onChange={(e) => setJobState((s) => ({ ...s, [option.id]: e.target.checked }))} /><span>{option.label}</span></label>)}</Field>
@@ -115,12 +134,12 @@ export default function App() {
       </div><div className="quick-result"><div><small>Recommended price before buffer</small><strong>{fmtMoney(jobPricing.recommended)}</strong></div><div><small>Quote total</small><strong>{fmtMoney(jobPricing.total)}</strong></div><p>{generateScope(jobTemplate, jobState)}</p></div>
     </section>
 
-    {errors.length > 0 && <div className="error-box"><strong>Fix before saving estimate</strong>{errors.map((error) => <div key={error}>{error}</div>)}</div>}
-    <button className="primary-button" onClick={validate}>Validate estimate inputs</button>
+    {errors.length > 0 && <div className="error-box"><strong>Review these items before quoting</strong>{errors.map((error) => <div key={error}>{error}</div>)}</div>}
+    <button className="primary-button" onClick={validate}>Check estimate inputs</button>
 
-    <h2 className="section-label">Job summary</h2>
+    <h2 className="section-label">3. Estimate summary</h2>
     <section className="pim-summary">
-      <div className="pim-summary-grid"><Metric label="Total direct cost" value={fmtMoney(estimate.direct)} /><Metric label="Market median" value={fmtMoney(estimate.marketMedian)} /><Metric label="Recommended price" value={fmtMoney(estimate.recommended)} /><Metric label="Confidence" value={estimate.overallConfidence === null ? 'Unavailable' : `${estimate.overallConfidence}%`} /></div>
+      <div className="pim-summary-grid"><Metric label="Total direct cost" value={fmtMoney(estimate.direct)} /><Metric label="Market median" value={fmtMoney(estimate.marketMedian)} /><Metric label="Recommended price" value={fmtMoney(estimate.recommended)} /><Metric label="Benchmark coverage" value={estimate.benchmarkCoverage === null ? 'Unavailable' : `${estimate.benchmarkCoverage}%`} /></div>
       <div className="pim-bar-label"><span>labor / materials composition</span><span>{fmtMoney(estimate.labor)} labor · {fmtMoney(estimate.materials)} materials</span></div>
       <div className="pim-bar"><div className="seg-labor" style={{ width: `${estimate.direct ? estimate.labor / estimate.direct * 100 : 0}%` }} /><div className="seg-materials" style={{ width: `${estimate.direct ? estimate.materials / estimate.direct * 100 : 0}%` }} /></div>
       <div className="summary-note">{estimate.marketMedian === null ? 'Market benchmarks are unavailable until a licensed source or verified internal benchmark is connected.' : `Market position: ${fmtMoney(estimate.marketLow)} low · ${fmtMoney(estimate.marketMedian)} median · ${fmtMoney(estimate.marketP60)} P60`}</div>
@@ -128,7 +147,7 @@ export default function App() {
 
     <h2 className="section-label">Line items</h2>
     {estimate.items.length === 0 ? <div className="pim-empty">Select at least one scope above.</div> : estimate.items.map((item) => <article className="line-card" key={item.id}>
-      <div className="line-head"><div><h3>{SCOPE_CATALOG.find((entry) => entry.id === item.id)?.name}</h3><small>{item.quantity} units · {item.confidence === null ? 'benchmark unavailable' : `confidence ${item.confidence}%`}</small></div><span className={`badge ${item.marginConflict === true ? 'flag' : item.marginConflict === false ? 'ok' : 'neutral'}`}>{item.marginConflict === true ? 'margin conflict' : item.marginConflict === false ? 'on target' : 'needs benchmark'}</span></div>
+      <div className="line-head"><div><h3>{SCOPE_CATALOG.find((entry) => entry.id === item.id)?.name}</h3><small>{item.quantity} units · {item.benchmarkSpread === null ? 'benchmark unavailable' : `benchmark range spread ${item.benchmarkSpread}%`}</small></div><span className={`badge ${item.marginConflict === true ? 'flag' : item.marginConflict === false ? 'ok' : 'neutral'}`}>{item.marginConflict === true ? 'margin conflict' : item.marginConflict === false ? 'on target' : 'needs benchmark'}</span></div>
       <div className="line-body"><div className="figures"><Row label="Materials" value={fmt2(item.materialsTotal)} /><Row label="Labor" value={fmt2(item.laborTotal)} /><Row label="Direct cost" value={fmt2(item.directTotal)} bold /><Row label="Recommended price" value={fmt2(item.recommendedPrice)} bold /></div><div className="benchmark"><strong>Benchmark evidence</strong><p>{item.benchmark ? `${fmt2(item.benchmark.low)} low · ${fmt2(item.benchmark.median)} median · ${fmt2(item.benchmark.p60)} P60` : 'No verified benchmark entered for this scope.'}</p><button className="text-button" onClick={() => setOpenBom((current) => ({ ...current, [item.id]: !current[item.id] }))}>{openBom[item.id] ? 'Hide' : 'Show'} source inputs</button>{openBom[item.id] && <dl><dt>Material rate</dt><dd>{fmt2(item.materialCostPerUnit)} / unit</dd><dt>Labor hours</dt><dd>{item.laborHoursPerUnit} / unit</dd><dt>Labor rate</dt><dd>{fmt2(item.laborRate)} / hour</dd><dt>PPI factor</dt><dd>{market ? `×${market.materialIndexFactor.toFixed(4)}` : 'Unavailable'}</dd></dl>}</div></div>
     </article>)}
 

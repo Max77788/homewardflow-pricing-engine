@@ -60,7 +60,7 @@ export function calculateLineItem(item, marginPct, conditionMult, qualityMult, m
     recommendedPrice,
     benchmark,
     marginConflict: benchmark ? recommendedPrice > benchmark.p60 : null,
-    confidence: spread === null ? null : Math.max(40, Math.min(95, Math.round(100 - spread * 140))),
+    benchmarkSpread: spread === null ? null : Math.round(spread * 100),
   };
 }
 
@@ -72,8 +72,6 @@ export function calculateEstimate({ marginPct, conditionMult, qualityMult, mater
   const marketMedian = benchmarkValues ? lineItems.reduce((sum, item) => sum + item.benchmark.median, 0) : null;
   const marketP60 = benchmarkValues ? lineItems.reduce((sum, item) => sum + item.benchmark.p60, 0) : null;
   const recommended = total('recommendedPrice');
-  const weightedConfidence = lineItems.filter((item) => item.confidence !== null).reduce((sum, item) => sum + item.confidence * item.recommendedPrice, 0);
-  const confidenceBasis = lineItems.filter((item) => item.confidence !== null).reduce((sum, item) => sum + item.recommendedPrice, 0);
   return {
     items: lineItems,
     direct: total('directTotal'),
@@ -83,7 +81,7 @@ export function calculateEstimate({ marginPct, conditionMult, qualityMult, mater
     marketLow,
     marketMedian,
     marketP60,
-    overallConfidence: confidenceBasis ? Math.round(weightedConfidence / confidenceBasis) : null,
+    benchmarkCoverage: lineItems.length ? Math.round(lineItems.filter((item) => item.benchmark).length / lineItems.length * 100) : null,
     conflicts: lineItems.filter((item) => item.marginConflict).length,
     sources: [
       { name: 'BLS PPI', status: 'live' },

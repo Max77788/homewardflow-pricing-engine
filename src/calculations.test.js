@@ -19,7 +19,8 @@ describe('pricing calculations', () => {
     expect(result.marketMedian).toBeGreaterThan(0);
     expect(result.marketP60).toBeGreaterThan(result.marketMedian);
     expect(result.recommended).toBeGreaterThan(0);
-    expect(result.overallConfidence).not.toBeNull();
+    expect(result.benchmarkCoverage).toBe(100);
+    expect(result.items[0].benchmarkSpread).toBe(41);
   });
 
   it('defines a non-empty fallback labor rate for immediate scope population', () => {
@@ -51,12 +52,13 @@ describe('pricing calculations', () => {
     expect(result.items[0].marginConflict).toBe(true);
   });
 
-  it('does not invent benchmark confidence when benchmark inputs are absent', () => {
+  it('does not imply confidence when benchmark inputs are absent', () => {
     const result = calculateEstimate({
       marginPct: 30, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
       items: [{ id: 'roofing', quantity: 1, materialCostPerUnit: 100, laborHoursPerUnit: 2, laborRate: 50 }],
     });
-    expect(result.items[0].confidence).toBe(null);
+    expect(result.items[0].benchmarkSpread).toBe(null);
+    expect(result.benchmarkCoverage).toBe(0);
     expect(result.marketMedian).toBe(null);
     expect(result.sources.some((source) => source.status === 'user_input')).toBe(true);
   });
