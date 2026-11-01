@@ -2,6 +2,10 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { buildSourceStatus } from '../api/source-status.js';
+import priceParityHandler from '../api/price-parity.js';
+import constructionDataHandler from '../api/construction-data.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT || 4173);
@@ -64,16 +68,9 @@ app.get('/api/market-data', async (req, res) => {
   }
 });
 
-app.get('/api/source-status', (_req, res) => res.json({
-  sources: [
-    { id: 'bls-ppi', name: 'BLS Producer Price Index', status: 'live_api', note: 'Used for material escalation from the selected base month.' },
-    { id: 'bls-ces', name: 'BLS Construction Average Hourly Earnings', status: 'live_api', note: 'No-key nationwide construction wage baseline; local labor overrides remain available.' },
-    { id: 'oews', name: 'BLS Occupational Employment and Wage Statistics', status: 'public_file', note: 'Official public annual OEWS files can be imported when a release is selected; no API key is required.' },
-    { id: 'census-acs', name: 'U.S. Census American Community Survey', status: process.env.CENSUS_API_KEY ? 'live_api' : 'key_required', note: process.env.CENSUS_API_KEY ? 'Nationwide housing-unit context from the 2023 ACS 5-year API.' : 'Add CENSUS_API_KEY to enable this source.' },
-    { id: 'census-permits', name: 'U.S. Census Building Permits Survey', status: 'not_configured', note: 'Not enabled until a verified Building Permits dataset and release are configured.' },
-    { id: 'craftsman', name: 'Craftsman', status: process.env.CRAFTSMAN_API_URL ? 'configured' : 'not_configured', note: 'Optional licensed market benchmark adapter. No benchmark values are fabricated when unavailable.' },
-  ],
-}));
+app.get('/api/source-status', (_req, res) => res.json(buildSourceStatus()));
+app.get('/api/price-parity', (req, res) => priceParityHandler({ query: req.query }, res));
+app.get('/api/construction-data', (req, res) => constructionDataHandler({ query: req.query }, res));
 
 app.get('/api/labor-data', async (_req, res) => {
   try {

@@ -31,6 +31,7 @@ export default function App() {
   const [marketState, setMarketState] = useState('loading');
   const [labor, setLabor] = useState(null);
   const [construction, setConstruction] = useState(null);
+  const [priceParity, setPriceParity] = useState(null);
   const [errors, setErrors] = useState([]);
   const [openBom, setOpenBom] = useState({});
   const [jobType, setJobType] = useState(() => JOB_TEMPLATES[savedDraft?.jobType] ? savedDraft.jobType : 'painting');
@@ -58,13 +59,20 @@ export default function App() {
   }, [project.seriesId, project.baseMonth]);
 
   useEffect(() => {
-    Promise.all([fetch('/api/labor-data').then((response) => response.ok ? response.json() : null), fetch('/api/construction-data').then((response) => response.ok ? response.json() : null)])
+    fetch(`/api/price-parity?stateCode=${encodeURIComponent(project.stateCode)}`)
+      .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error); return data; })
+      .then(setPriceParity)
+      .catch(() => setPriceParity(null));
+  }, [project.stateCode]);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/labor-data').then((response) => response.ok ? response.json() : null), fetch(`/api/construction-data?stateCode=${encodeURIComponent(project.stateCode)}`).then((response) => response.ok ? response.json() : null)])
       .then(([laborData, constructionData]) => {
         setLabor(laborData); setConstruction(constructionData);
         if (laborData?.current?.value) setInputs((current) => Object.fromEntries(Object.entries(current).map(([id, item]) => [id, item.laborRate === '' || item.laborRate === DEMO_LABOR_RATE ? { ...item, laborRate: laborData.current.value } : item])));
       })
       .catch(() => {});
-  }, []);
+  }, [project.stateCode]);
 
   const selectedItems = useMemo(() => SCOPE_CATALOG.filter((catalog) => items[catalog.id]).map((catalog) => ({ ...inputs[catalog.id], id: catalog.id })), [items, inputs]);
   const condition = CONDITIONS.find((entry) => entry.id === project.conditionId) || CONDITIONS[0];
@@ -107,7 +115,8 @@ export default function App() {
       <Field label="Material base month"><input type="month" value={project.baseMonth} onChange={(e) => updateProject('baseMonth', e.target.value)} /><small>BLS PPI escalation anchor</small></Field>
       <Field label="BLS PPI series"><input value={project.seriesId} onChange={(e) => updateProject('seriesId', e.target.value.toUpperCase())} /><small>Default {DEFAULT_PPI_SERIES}. Verify series meaning before production use.</small></Field>
       <div className="source-card"><strong>Material index source</strong><span className={marketState === 'ready' ? 'ok' : 'warn'}>{marketState === 'ready' ? 'BLS observation loaded' : marketState === 'loading' ? 'Loading BLS...' : 'BLS unavailable · factor defaults to 1.00'}</span>{market && <small>{market.current.date} · {market.current.value} index · fetched {new Date(market.fetchedAt).toLocaleString()}</small>}</div>
-      <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · {labor.current.date}</small>}{construction?.housingUnits?.value ? <small>{construction.housingUnits.value.toLocaleString()} housing units{construction?.permits?.value ? ` · ${construction.permits.value.toLocaleString()} permits` : ''}</small> : null}<small>Context only. Local labor and verified unit costs remain editable.</small></div>
+      <div className="source-card"><strong>Public market context</strong>{labor && <small>Construction wage baseline: ${labor.current.value.toFixed(2)}/hr · nationwide · {labor.current.date}</small>}{construction?.housingUnits?.value ? <small>{construction.housingUnits.value.toLocaleString()} housing units · Census ACS {construction.housingUnits.year}</small> : null}<small>Wage baseline is not a local trade rate. Local labor and verified unit costs remain editable.</small></div>
+      <div className="source-card"><strong>Regional price context</strong>{priceParity ? <small>{priceParity.state} all-items index: {priceParity.index.toFixed(1)} · BEA {priceParity.datasetYear} · {priceParity.relativeToNational >= 1 ? '+' : ''}{((priceParity.relativeToNational - 1) * 100).toFixed(1)}% vs. U.S.</small> : <small>BEA regional index unavailable for this state.</small>}<small>Broad regional context only; not construction-specific and not applied to your estimate.</small></div>
     </section>
 
     <section className="scope-header"><h2>2. Add work items</h2><p>Sample starter values are estimates only. Verify against your own supplier and labor costs.</p></section>

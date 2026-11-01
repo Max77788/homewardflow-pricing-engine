@@ -1,3 +1,5 @@
+import { getStateFips } from '../src/price-parity.js';
+
 const CENSUS_API_KEY = process.env.CENSUS_API_KEY;
 
 async function fetchJson(url) {
@@ -8,23 +10,26 @@ async function fetchJson(url) {
   return response.json();
 }
 
-export default async function handler(_req, res) {
+export default async function handler(req, res) {
+  const stateCode = String(req.query?.stateCode || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(stateCode)) return res.status(400).json({ error: 'stateCode must be a 2-letter state or DC code.' });
+  const fips = getStateFips(stateCode);
+  if (!fips) return res.status(400).json({ error: 'Unsupported state code.' });
   if (!CENSUS_API_KEY) {
-    return res.status(424).json({
-      error: 'Census API key required in this deployment environment.',
-      status: 'key_required',
-    });
+    return res.status(424).json({ error: 'Census API key required in this deployment environment.', status: 'key_required' });
   }
 
   try {
-    const acs = await fetchJson(`https://api.census.gov/data/2023/acs/acs5?get=NAME,B25001_001E&for=us:1&key=${encodeURIComponent(CENSUS_API_KEY)}`);
+    const acs = await fetchJson(`https://api.census.gov/data/2023/acs/acs5?get=NAME,B25001_001E&for=state:${fips.slice(0, 2)}&key=${encodeURIComponent(CENSUS_API_KEY)}`);
     const housingUnits = Number(acs?.[1]?.[1]);
     if (!Number.isFinite(housingUnits)) throw new Error('Census ACS returned no housing-unit value.');
     return res.json({
       source: 'U.S. Census Bureau American Community Survey API',
+      geography: { stateCode, name: acs[1][0] },
       housingUnits: { value: housingUnits, year: 2023 },
       permits: null,
-      notes: ['Building Permits data is not enabled because the Census endpoint requires a separate dataset configuration.'],
+      sourceUrl: 'https://api.census.gov/data/2023/acs/acs5',
+      notes: ['Housing-stock context only; this does not affect estimate prices. Building Permits remains a separate unconfigured Census dataset.'],
     });
   } catch (error) {
     return res.status(502).json({ error: error instanceof Error ? error.message : 'Census request failed', status: 'upstream_error' });
