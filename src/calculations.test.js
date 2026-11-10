@@ -52,6 +52,27 @@ describe('pricing calculations', () => {
     expect(result.items[0].marginConflict).toBe(true);
   });
 
+  it('applies contractor waste and overhead assumptions before target margin', () => {
+    const result = calculateEstimate({
+      marginPct: 20, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,
+      items: [{ id: 'custom', quantity: 10, materialCostPerUnit: 10, laborHoursPerUnit: 1, laborRate: 20, wastePct: 10, overheadPct: 25 }],
+    });
+    expect(result.materials).toBeCloseTo(110, 10);
+    expect(result.labor).toBe(200);
+    expect(result.direct).toBeCloseTo(310, 10);
+    expect(result.overhead).toBeCloseTo(77.5, 10);
+    expect(result.recommended).toBeCloseTo(484.375, 6);
+  });
+
+  it('rejects negative imported overhead and material waste assumptions', () => {
+    const errors = validateEstimateInput({
+      projectName: 'Test', stateCode: 'MD', zip: '21201', marginPct: 30,
+      items: [{ quantity: 1, materialCostPerUnit: 10, laborHoursPerUnit: 1, laborRate: 40, overheadPct: -1, wastePct: -2 }],
+    });
+    expect(errors).toContain('Overhead allocation must be a valid non-negative percentage.');
+    expect(errors).toContain('Material waste must be a valid non-negative percentage.');
+  });
+
   it('does not imply confidence when benchmark inputs are absent', () => {
     const result = calculateEstimate({
       marginPct: 30, conditionMult: 1, qualityMult: 1, materialIndexFactor: 1,

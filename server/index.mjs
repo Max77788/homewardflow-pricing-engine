@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { buildSourceStatus } from '../api/source-status.js';
 import priceParityHandler from '../api/price-parity.js';
 import constructionDataHandler from '../api/construction-data.js';
+import { createCraftsmanHandler } from '../api/craftsman.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT || 4173);
 const cache = new Map();
+const craftsmanHandler = createCraftsmanHandler();
 const BLS_API = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
 
 app.use(express.json({ limit: '64kb' }));
@@ -69,6 +71,7 @@ app.get('/api/market-data', async (req, res) => {
 });
 
 app.get('/api/source-status', (_req, res) => res.json(buildSourceStatus()));
+app.get('/api/craftsman', (req, res) => craftsmanHandler(req, res));
 app.get('/api/price-parity', (req, res) => priceParityHandler({ query: req.query }, res));
 app.get('/api/construction-data', (req, res) => constructionDataHandler({ query: req.query }, res));
 

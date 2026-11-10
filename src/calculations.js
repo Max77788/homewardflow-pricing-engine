@@ -39,10 +39,14 @@ export function clampMarginPct(value) {
 
 export function calculateLineItem(item, marginPct, conditionMult, qualityMult, materialIndexFactor) {
   const quantity = money(item.quantity);
-  const materialTotal = money(item.materialCostPerUnit) * quantity * materialIndexFactor * conditionMult * qualityMult;
+  const wastePct = Math.max(0, money(item.wastePct));
+  const overheadPct = Math.max(0, money(item.overheadPct));
+  const materialTotal = money(item.materialCostPerUnit) * quantity * (1 + wastePct / 100) * materialIndexFactor * conditionMult * qualityMult;
   const laborTotal = money(item.laborHoursPerUnit) * quantity * money(item.laborRate);
   const directTotal = materialTotal + laborTotal;
-  const recommendedPrice = directTotal / (1 - clampMarginPct(marginPct) / 100);
+  const overheadTotal = directTotal * overheadPct / 100;
+  const fullyLoadedTotal = directTotal + overheadTotal;
+  const recommendedPrice = fullyLoadedTotal / (1 - clampMarginPct(marginPct) / 100);
   const benchmark = ['benchmarkLow', 'benchmarkMedian', 'benchmarkP60'].every((key) => Number.isFinite(Number(item[key])) && Number(item[key]) > 0)
     ? {
         low: money(item.benchmarkLow) * quantity,
@@ -57,6 +61,8 @@ export function calculateLineItem(item, marginPct, conditionMult, qualityMult, m
     materialsTotal: materialTotal,
     laborTotal,
     directTotal,
+    overheadTotal,
+    fullyLoadedTotal,
     recommendedPrice,
     benchmark,
     marginConflict: benchmark ? recommendedPrice > benchmark.p60 : null,
@@ -77,6 +83,7 @@ export function calculateEstimate({ marginPct, conditionMult, qualityMult, mater
     direct: total('directTotal'),
     materials: total('materialsTotal'),
     labor: total('laborTotal'),
+    overhead: total('overheadTotal'),
     recommended,
     marketLow,
     marketMedian,
@@ -98,9 +105,13 @@ export function validateEstimateInput(input) {
   if (!/^\d{5}$/.test(String(input.zip || ''))) errors.push('ZIP code must be 5 digits.');
   if (!Number.isFinite(Number(input.marginPct)) || Number(input.marginPct) < 0 || Number(input.marginPct) > 90) errors.push('Target margin must be between 0% and 90%.');
   for (const item of input.items || []) {
-    if (!(Number(item.quantity) > 0)) errors.push('Every selected scope must have a quantity greater than zero.');
-    if (Number(item.materialCostPerUnit) < 0) errors.push('Material cost cannot be negative.');
-    if (Number(item.laborHoursPerUnit) < 0 || Number(item.laborRate) < 0) errors.push('Labor hours and labor rate cannot be negative.');
+    if (!Number.isFinite(Number(item.quantity)) || !(Number(item.quantity) > 0)) errors.push('Every selected scope must have a quantity greater than zero.');
+    if (!Number.isFinite(Number(item.materialCostPerUnit))) errors.push('Material cost must be a valid number.');
+    else if (Number(item.materialCostPerUnit) < 0) errors.push('Material cost cannot be negative.');
+    if (!Number.isFinite(Number(item.laborHoursPerUnit)) || !Number.isFinite(Number(item.laborRate))) errors.push('Labor hours and labor rate must be valid numbers.');
+    else if (Number(item.laborHoursPerUnit) < 0 || Number(item.laborRate) < 0) errors.push('Labor hours and labor rate cannot be negative.');
+    if (!Number.isFinite(Number(item.wastePct ?? 0)) || Number(item.wastePct ?? 0) < 0) errors.push('Material waste must be a valid non-negative percentage.');
+    if (!Number.isFinite(Number(item.overheadPct ?? 0)) || Number(item.overheadPct ?? 0) < 0) errors.push('Overhead allocation must be a valid non-negative percentage.');
   }
   return [...new Set(errors)];
 }
